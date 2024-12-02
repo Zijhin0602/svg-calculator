@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG 圓形面積計算器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .result {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        .preview-container {
+            margin-top: 20px;
+        }
+        #previewCanvas {
+            border: 1px solid #ccc;
+            margin-top: 10px;
+            width: 100%;
+            max-width: 1200px;
+            height: auto;
+            min-height: 600px;
+            background-color: white;
+            overflow: hidden;
+        }
+        
+        #previewCanvas svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>SVG 圓形面積計算器</h1>
+    
+    <div class="file-input">
+        <label for="dxfFile">選擇 SVG 文件：</label>
+        <input type="file" id="dxfFile" accept=".svg">
+        <p id="detectionStatus" style="margin-top: 10px; font-weight: bold;"></p>
+    </div>
+
+    <div class="result">
+        <h3>計算結果：</h3>
+        <p>黃色圓形總面積：<span id="yellowArea">0</span> 平方單位</p>
+        <p>藍色圓形總面積：<span id="blueArea">0</span> 平方單位</p>
+        <p>綠色重疊區域面積：<span id="greenArea">0</span> 平方單位</p>
+        <p>藍色可見區域面積：<span id="blueVisibleArea">0</span> 平方單位</p>
+    </div>
+
+    <div class="preview-container">
+        <h3>預覽：</h3>
+        <div id="previewCanvas"></div>
+    </div>
+
+    <script src="app_svg.js"></script>
+</body>
+</html>
