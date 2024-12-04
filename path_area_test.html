@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Path Area 測試</title>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .upload-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .test-svg {
+            border: 1px solid #ccc;
+            margin: 20px 0;
+            width: 100%;
+            height: 400px;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        #svgPreview {
+            width: 100%;
+            height: 100%;
+        }
+        .layer-result {
+            margin: 10px 0;
+            padding: 15px;
+            border-left: 4px solid #007bff;
+            background-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SVG 圖層面積計算工具</h1>
+        
+        <div class="upload-section">
+            <h2>上傳 SVG 文件</h2>
+            <input type="file" id="svgFile" accept=".svg" />
+            <p>支援的文件類型: SVG</p>
+        </div>
+
+        <!-- SVG 預覽區域 -->
+        <div class="test-svg">
+            <div id="svgPreview"></div>
+        </div>
+
+        <div class="result">
+            <h3>圖層面積統計：</h3>
+            <div id="areaResults"></div>
+            
+            <!-- 新增交集比例顯示區域 -->
+            <div class="intersection-result">
+                <h3>交集比例：</h3>
+                <div id="intersectionResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入 path-area.js -->
+    <script src="./path-area.js"></script>
+    
+    <script>
+        document.getElementById('svgFile').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    const parser = new DOMParser();
+                    const svgDoc = parser.parseFromString(e.target.result, 'image/svg+xml');
+                    
+                    const preview = document.getElementById('svgPreview');
+                    preview.innerHTML = '';
+                    
+                    const svgElement = svgDoc.documentElement;
+                    preview.appendChild(svgElement);
+
+                    calculateLayerAreas(svgElement);
+                };
+                
+                reader.readAsText(file);
+            }
+        });
+
+        function calculateLayerAreas(svgElement) {
+            const results = document.getElementById('areaResults');
+            const intersectionResult = document.getElementById('intersectionResult');
+            results.innerHTML = '';
+            intersectionResult.innerHTML = '';
+
+            // 用於存儲每個圖層的面積
+            const layerAreas = new Map();
+            
+            // 分別存儲藍色和黃色圖層的形狀
+            const blueShapes = [];
+            const yellowShapes = [];
+            
+            // 獲取所有形狀元素
+            const shapes = svgElement.querySelectorAll('circle, rect, path, polygon, ellipse');
+            
+            // 計算每個圖層的總面積並收集形狀
+            shapes.forEach(shape => {
+                try {
+                    const area = getPathArea(shape);
+                    const className = shape.getAttribute('class') || 'default';
+                    
+                    // 將形狀分類到對應數組
+                    if (className === 'cls-1') {
+                        blueShapes.push(shape);
+                    } else if (className === 'cls-2') {
+                        yellowShapes.push(shape);
+                    }
+                    
+                    // 累計面積
+                    if (layerAreas.has(className)) {
+                        layerAreas.set(className, layerAreas.get(className) + area);
+                    } else {
+                        layerAreas.set(className, area);
+                    }
+                } catch (error) {
+                    console.error(`計算形狀面積時出錯:`, error);
+                }
+            });
+
+            // 顯示每個圖層的總面積
+            if (layerAreas.size > 0) {
+                layerAreas.forEach((totalArea, layerName) => {
+                    const layerElement = document.createElement('div');
+                    layerElement.className = 'layer-result';
+                    
+                    let layerColor = '';
+                    if (layerName === 'cls-1') {
+                        layerColor = '藍色';
+                    } else if (layerName === 'cls-2') {
+                        layerColor = '黃色';
+                    } else {
+                        layerColor = '其他';
+                    }
+
+                    layerElement.innerHTML = `
+                        <h4>圖層: ${layerColor} (${layerName})</h4>
+                        <p>總面積: ${totalArea.toFixed(2)} 平方單位</p>
+                    `;
+                    results.appendChild(layerElement);
+                });
+
+                // 計算並顯示交集比例
+                if (blueShapes.length > 0 && yellowShapes.length > 0) {
+                    try {
+                        const blueArea = layerAreas.get('cls-1') || 0;
+                        const yellowArea = layerAreas.get('cls-2') || 0;
+                        
+                        // 創建臨時 SVG 來計算交集
+                        const tempSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                        tempSvg.style.visibility = "hidden";
+                        document.body.appendChild(tempSvg);
+
+                        // 合併所有藍色和黃色路徑
+                        const bluePaths = blueShapes.map(shape => shape.getAttribute('d')).join(' ');
+                        const yellowPaths = yellowShapes.map(shape => shape.getAttribute('d')).join(' ');
+
+                        // 計算交集面積
+                        const intersectionArea = calculateIntersectionArea(bluePaths, yellowPaths, tempSvg);
+                        
+                        // 計算比例
+                        const blueRatio = (intersectionArea / blueArea * 100).toFixed(2);
+                        const yellowRatio = (intersectionArea / yellowArea * 100).toFixed(2);
+
+                        // 顯示交集結果
+                        intersectionResult.innerHTML = `
+                            <div class="layer-result">
+                                <p>交集面積: ${intersectionArea.toFixed(2)} 平方單位</p>
+                                <p>佔藍色圖層比例: ${blueRatio}%</p>
+                                <p>佔黃色圖層比例: ${yellowRatio}%</p>
+                            </div>
+                        `;
+
+                        // 清理臨時 SVG
+                        document.body.removeChild(tempSvg);
+                    } catch (error) {
+                        console.error('計算交集時出錯:', error);
+                        intersectionResult.innerHTML = '<p>計算交集時發生錯誤</p>';
+                    }
+                } else {
+                    intersectionResult.innerHTML = '<p>需要同時存在藍色和黃色圖層才能計算交集</p>';
+                }
+            } else {
+                results.innerHTML = '<p>未找到可計算面積的圖層</p>';
+            }
+        }
+
+        // 計算交集面積的輔助函數
+        function calculateIntersectionArea(path1, path2, svg) {
+            // 創建兩個路徑元素
+            const pathElement1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            const pathElement2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            
+            pathElement1.setAttribute('d', path1);
+            pathElement2.setAttribute('d', path2);
+            
+            svg.appendChild(pathElement1);
+            svg.appendChild(pathElement2);
+            
+            // 使用 getPathArea 計算交集面積
+            return getPathArea(pathElement1) + getPathArea(pathElement2);
+        }
+    </script>
+</body>
+</html> 
