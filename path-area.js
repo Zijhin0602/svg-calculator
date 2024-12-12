@@ -17,7 +17,7 @@ let getPathArea = (function () {
 
     // 頝臬�頧砍�朞器敶�
     function pathToPolygon (num) {
-        num = num || 100;
+        num = num || 200;
 
         var len = elePath.getTotalLength();
         var points = [];
@@ -877,116 +877,147 @@ let getPathArea = (function () {
       return path;
     }
 
-    return function (path, num, overlay) {
-        if (!path) {
-            return 0;
+    // 獲取圖層中的所有路徑元素
+    function getLayerPaths(svgElement, layerId) {
+        const layer = svgElement.getElementById(layerId);
+        if (!layer) {
+            console.warn(`找不到圖層: ${layerId}`);
+            return [];
         }
-        var tagName = path.tagName;
-        var eleTarget = null;
-
-        if (num && num.tagName) {
-            overlay = num;
-            num = 100;
-        }
-
-        if (tagName) {
-            eleTarget = path;
-            path = convertPathData(path);
-        }
-
-        // ��𥕦遣����鞱�讐�elePath��蝝�
-        elePath.setAttribute('d', path);
-        let poly = pathToPolygon(num || 100);
-
-        // 頝臬��孵�鞉��糓�炏�銁����𡁜㦛敶Ｗ躹��笔��
-        if (overlay && eleTarget) {
-            var bound = overlay.getBoundingClientRect();
-            var eleSvg = eleTarget.closest('svg');
-            var boundSvg = eleSvg.getBoundingClientRect();
-
-            var scaleSvg = (eleSvg.getAttribute('width') * 1 || 300) / boundSvg.width;
-
-            if (bound.width) {
-                poly = poly.filter(function (xy) {
-                    // 甇斗𧒄�孵�鞉��㮾撖嫣�𡡞△�𢒰����鞉��
-                    var x = boundSvg.left + xy[0] * scaleSvg;
-                    var y = boundSvg.top + xy[1] * scaleSvg;
-
-                    // �嗅�舘恣蝞𨨖, y�糓�炏�氜�銁bound�躹��笔��
-                    if (x >= bound.left && x <= bound.right && y >= bound.top && y <= bound.bottom) {
-                        return true;
-                    }
-                    return false;
-                });
-            }
-        }
-
-        if (poly.length < 3) {
-            return 0;
-        }
-
-        // 餈𥪜�鮋𢒰蝘�
-        return getArea(poly);
-    };
-
-    // 假設已經有藍色和黃色元素的引用 blueElement 和 yellowElement
-// 並且引用了 getPathArea 函數
-
-function calculateIntersectionRatio(blueElement, yellowElement) {
-    // 獲取藍色圖形的 Path 數據
-    const bluePath = convertPathData(blueElement);
-    const yellowPath = convertPathData(yellowElement);
-
-    // 檢查是否存在有效 Path
-    if (!bluePath || !yellowPath) {
-        console.error('無效的 Path 數據');
-        return 0;
-    }
-
-    // 設置兩個 Path 到 SVG 處理對象中
-    const elePath = document.getElementById('pathForArea');
-
-    // 設置黃色圖形的 Path，計算其總面積
-    elePath.setAttribute('d', yellowPath);
-    const yellowPolygon = pathToPolygon(100); // 黃色多邊形點數據
-    const yellowArea = getArea(yellowPolygon);
-
-    // 將藍色 Path 與黃色 Path 的交集篩選點
-    elePath.setAttribute('d', bluePath);
-    let bluePolygon = pathToPolygon(100);
-
-    const intersectionPolygon = bluePolygon.filter(function (xy) {
-        const x = xy[0];
-        const y = xy[1];
-
-        // 檢查點是否在黃色圖形內
-        return yellowPolygon.some(function (yellowPoint) {
-            return x === yellowPoint[0] && y === yellowPoint[1];
+        
+        // 獲取圖層中所有的圖形元素
+        return Array.from(layer.getElementsByTagName('*')).filter(element => {
+            const tagName = element.tagName.toLowerCase();
+            return ['path', 'circle', 'rect', 'ellipse', 'polygon', 'polyline'].includes(tagName);
         });
-    });
-
-    // 若交集多邊形點數不足以構成多邊形，返回 0
-    if (intersectionPolygon.length < 3) {
-        console.warn('交集面積無法形成多邊形');
-        return 0;
     }
 
-    // 計算交集面積
-    const intersectionArea = getArea(intersectionPolygon);
+    return {
+        getPathArea: function (path, num, overlay) {
+            if (!path) {
+                return 0;
+            }
+            
+            try {
+                var tagName = path.tagName;
+                var eleTarget = null;
 
-    // 計算比率
-    const ratio = intersectionArea / yellowArea;
+                if (num && num.tagName) {
+                    overlay = num;
+                    num = 100;
+                }
 
-    console.log(`交疊面積：${intersectionArea}`);
-    console.log(`黃色圖形總面積：${yellowArea}`);
-    console.log(`交疊比例：${(ratio * 100).toFixed(2)}%`);
+                if (tagName) {
+                    eleTarget = path;
+                    const pathData = convertPathData(path);
+                    if (!pathData) {
+                        console.warn('路徑轉換失敗:', path);
+                        return 0;
+                    }
+                    path = pathData;
+                }
 
-    return ratio;
-}
+                elePath.setAttribute('d', path);
+                let poly = pathToPolygon(num || 100);
 
-// 輔助函數 pathToPolygon 和 getArea 來自提供的 SVG JS 文件
-// 請確保在使用此代碼時正確集成了文件中的相關函數
-// 使用範例:
-// const ratio = calculateIntersectionRatio(document.querySelector('#blue'), document.querySelector('#yellow'));
+                if (!poly || poly.length < 3) {
+                    console.warn('無效的多邊形點集');
+                    return 0;
+                }
 
+                if (overlay && eleTarget) {
+                    var bound = overlay.getBoundingClientRect();
+                    var eleSvg = eleTarget.closest('svg');
+                    var boundSvg = eleSvg.getBoundingClientRect();
+                    
+                    // 獲取圓形的中心點和半徑
+                    var circle = overlay;
+                    var cx = parseFloat(circle.getAttribute('cx'));
+                    var cy = parseFloat(circle.getAttribute('cy'));
+                    var r = parseFloat(circle.getAttribute('r'));
+
+                    if (bound.width) {
+                        poly = poly.filter(function (xy) {
+                            var x = xy[0];
+                            var y = xy[1];
+
+                            // 計算點到圓心的距離
+                            var dx = x - cx;
+                            var dy = y - cy;
+                            var distance = Math.sqrt(dx * dx + dy * dy);
+
+                            // 檢查點是否在圓形內
+                            return distance <= r;
+                        });
+                    }
+                }
+
+                const area = getArea(poly);
+                if (isNaN(area)) {
+                    console.warn('面積計算結果無效');
+                    return 0;
+                }
+                return area;
+            } catch (error) {
+                console.error('面積計算出錯:', error);
+                return 0;
+            }
+        },
+        
+        getLayerPaths: getLayerPaths,
+        
+        calculateLayerIntersection: function(svgElement) {
+            // 獲取兩個圖層的所有路徑
+            const layer2Paths = getLayerPaths(svgElement, '_圖層_2');  // 黃色圓形
+            const layer1Paths = getLayerPaths(svgElement, '_圖層_1');  // 藍色點陣
+            
+            if (!layer2Paths.length || !layer1Paths.length) {
+                console.warn('找不到必要的圖層或圖層為空');
+                return {
+                    intersectionArea: 0,
+                    layer2Area: 0,
+                    layer1Area: 0
+                };
+            }
+
+            // 計算各圖層的總面積
+            let layer2Area = 0;
+            let layer1Area = 0;
+            let intersectionArea = 0;
+
+            // 計算黃色圓形的總面積
+            layer2Paths.forEach(path => {
+                try {
+                    const area = this.getPathArea(path);
+                    layer2Area += area;
+                } catch (error) {
+                    console.error('計算黃色圓形面積時出錯:', error);
+                }
+            });
+
+            // 計算藍色點陣的總面積
+            layer1Paths.forEach(path => {
+                try {
+                    const area = this.getPathArea(path);
+                    layer1Area += area;
+                } catch (error) {
+                    console.error('計算藍色點陣面積時出錯:', error);
+                }
+            });
+
+            // 計算交集面積
+            const yellowCircle = layer2Paths[0]; // 取得黃色圓形
+            layer1Paths.forEach(blueDot => {
+                // 對每個藍色點與黃色圓形計算交集
+                const overlap = this.getPathArea(blueDot, yellowCircle);
+                intersectionArea += overlap;
+            });
+
+            return {
+                intersectionArea,
+                layer2Area,
+                layer1Area
+            };
+        }
+    };
 })();
